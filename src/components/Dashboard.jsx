@@ -263,37 +263,49 @@ const Dashboard = () => {
   };
 
   const handleEditMessage = async (messageId, newContent) => {
-    if (!newContent.trim() || !socket || !selectedUser) return;
+  if (!newContent.trim() || !socket || !selectedUser) return;
+  
+  // Check if this is a temporary message (optimistic update)
+  if (messageId.startsWith('temp_')) {
+    // Update the optimistic message in the local state
+    setMessages(prev => prev.map(msg => 
+      msg._id === messageId 
+        ? { ...msg, content: newContent, edited: true }
+        : msg
+    ));
+    setEditingMessage(null);
+    return;
+  }
 
-    try {
-      const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/messages/${messageId}`, {
-        method: 'PUT',
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        },
-        body: JSON.stringify({ content: newContent })
-      });
+  try {
+    const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/messages/${messageId}`, {
+      method: 'PUT',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${localStorage.getItem('token')}`
+      },
+      body: JSON.stringify({ content: newContent })
+    });
 
-      const data = await response.json();
-      if (!data.success) {
-        throw new Error(data.message || 'Failed to update message');
-      }
-
-      socket.emit('edit-message', {
-        messageId,
-        newContent,
-        receiverId: selectedUser._id
-      });
-
-      setEditingMessage(null);
-      toast.success('Message updated');
-    } catch (err) {
-      console.error('Error editing message:', err);
-      toast.error(err.message || 'Failed to update message');
+    const data = await response.json();
+    if (!data.success) {
+      throw new Error(data.message || 'Failed to update message');
     }
-  };
+
+    socket.emit('edit-message', {
+      messageId,
+      newContent,
+      receiverId: selectedUser._id
+    });
+
+    setEditingMessage(null);
+    toast.success('Message updated');
+  } catch (err) {
+    console.error('Error editing message:', err);
+    toast.error(err.message || 'Failed to update message');
+  }
+};
 
   const handleDeleteMessage = async (messageId) => {
     if (!socket || !selectedUser) return;
@@ -357,14 +369,6 @@ const Dashboard = () => {
 
   return (
     <div className="flex h-screen bg-gray-50">
-      {/* Mobile menu button */}
-      <button 
-        onClick={() => setMobileMenuOpen(true)}
-        className="md:hidden fixed bottom-6 right-6 z-20 bg-indigo-600 text-white p-3 rounded-full shadow-lg hover:bg-indigo-700 transition-colors"
-      >
-        <FiMenu size={24} />
-      </button>
-
       {/* Sidebar */}
       <div className={`w-72 bg-white border-r border-gray-200 flex flex-col fixed md:static inset-y-0 z-10 transform ${
         mobileMenuOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
@@ -453,6 +457,12 @@ const Dashboard = () => {
         {selectedUser ? (
           <div className="bg-white p-4 border-b border-gray-200 flex items-center justify-between sticky top-0 z-10">
             <div className="flex items-center">
+              <button 
+                onClick={() => setMobileMenuOpen(true)}
+                className="md:hidden mr-3 p-2 rounded-full hover:bg-gray-100 text-gray-600"
+              >
+                <FiMenu size={20} />
+              </button>
               <div className="relative flex-shrink-0">
                 <div className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-semibold shadow">
                   {selectedUser.name.charAt(0)}
@@ -468,15 +478,15 @@ const Dashboard = () => {
                 </p>
               </div>
             </div>
+          </div>
+        ) : (
+          <div className="bg-white p-4 border-b border-gray-200 flex items-center">
             <button 
-              className="md:hidden p-2 rounded-full hover:bg-gray-100 text-gray-600"
               onClick={() => setMobileMenuOpen(true)}
+              className="md:hidden mr-3 p-2 rounded-full hover:bg-gray-100 text-gray-600"
             >
               <FiMenu size={20} />
             </button>
-          </div>
-        ) : (
-          <div className="bg-white p-4 border-b border-gray-200">
             <h2 className="font-medium text-gray-900">Select a contact to start chatting</h2>
           </div>
         )}
